@@ -88,8 +88,10 @@ async def test_project(dut):
     await tqv.write_byte_reg(8, 1)
     assert not await tqv.is_interrupt_asserted()
 
+
 @cocotb.test()
 async def test_watchdog_interrupt_on_timeout(dut):
+    """Basic test to check that the watchdog timer asserts an interrupt on timeout."""
     dut._log.info("Starting WDT timeout test")
 
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
@@ -113,6 +115,7 @@ async def test_watchdog_interrupt_on_timeout(dut):
 
 @cocotb.test()
 async def test_watchdog_tap_prevents_timeout(dut):
+    """Basic test to check that tapping the watchdog prevents an interrupt."""
     dut._log.info("Starting WDT tap prevents interrupt test")
 
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
@@ -214,7 +217,7 @@ async def test_tap_with_wrong_value_ignored(dut):
     assert await tqv.is_interrupt_asserted(), "Interrupt cleared by invalid tap"
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_start_does_not_clear_interrupt(dut):
     """Writes to 'start' should not clear timeout."""
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
@@ -238,7 +241,7 @@ async def test_start_does_not_clear_interrupt(dut):
     assert await tqv.is_interrupt_asserted(), "Write to start incorrectly cleared interrupt"
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_repeated_start_reloads_countdown(dut):
     """Multiple writes to 'start' should reload countdown."""
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
