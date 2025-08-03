@@ -127,7 +127,7 @@ module tqvp_nkanderson_wdt (
     // Outputs
     // ------------------------------------------------------------------------
 
-    assign uo_out = 8'dz;  // Not used
+    assign uo_out = 8'd0;  // Not used
     assign data_out = data;
     assign data_ready = output_ready;
     assign user_interrupt = timeout_pending;
