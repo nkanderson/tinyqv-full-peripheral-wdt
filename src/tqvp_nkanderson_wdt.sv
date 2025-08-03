@@ -29,56 +29,111 @@ module tqvp_nkanderson_wdt (
     output        user_interrupt  // Dedicated interrupt request for this peripheral
 );
 
-    // Implement a 32-bit read/write register at address 0
-    reg [31:0] wdt_data;
-    always @(posedge clk) begin
+    // ------------------------------------------------------------------------
+    // Internal Registers and Parameters
+    // ------------------------------------------------------------------------
+    localparam TAP_MAGIC = 32'h0000ABCD;  // reduce likelihood of corrupt data inadvertently signalling tap
+    // Register address map
+    localparam ADDR_ENABLE = 6'd0;
+    localparam ADDR_START = 6'd1;
+    localparam ADDR_COUNTDOWN = 6'd2;
+    localparam ADDR_TAP = 6'd3;
+    localparam ADDR_STATUS = 6'd4;
+
+    logic [31:0] countdown_value;  // configured reload value
+    logic [31:0] counter;  // countdown timer
+
+    logic        enabled;  // written at address 0 or implied by start
+    logic        started;  // set by write to address 1
+    logic        timeout_pending;  // true if timer expired and interrupt is active
+
+    logic [31:0] data;  // output data
+    logic        output_ready;  // output data to the TinyQV core
+
+    // ------------------------------------------------------------------------
+    // Write Handling
+    // ------------------------------------------------------------------------
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            wdt_data <= 0;
+            enabled         <= 1'b0;
+            started         <= 1'b0;
+            countdown_value <= 32'd0;
+            counter         <= 32'd0;
+            timeout_pending <= 1'b0;
         end else begin
-            if (address == 6'h0) begin
-                if (data_write_n != 2'b11)              wdt_data[7:0]   <= data_in[7:0];
-                if (data_write_n[1] != data_write_n[0]) wdt_data[15:8]  <= data_in[15:8];
-                if (data_write_n == 2'b10)              wdt_data[31:16] <= data_in[31:16];
+            // Countdown logic
+            if (enabled && started && !timeout_pending) begin
+                if (counter > 0) counter <= counter - 1;
+                if (counter == 1) timeout_pending <= 1'b1;  // triggers interrupt on next clk
+            end
+
+            // Handle writes
+            if (data_write_n != 2'b11) begin
+                unique case (address)
+                    ADDR_ENABLE: begin  // Enable
+                        // Note: Does not clear timeout, but countdown and started state are preserved
+                        enabled <= data_in[0];
+                    end
+
+                    ADDR_START: begin  // Start
+                        // Start implicitly enables
+                        if (countdown_value != 0) begin
+                            enabled <= 1'b1;
+                            started <= 1'b1;
+                        end
+                    end
+
+                    ADDR_COUNTDOWN: begin  // Set countdown value
+                        unique case (data_write_n)
+                            2'b00: countdown_value <= {24'd0, data_in[7:0]};
+                            2'b01: countdown_value <= {16'd0, data_in[15:0]};
+                            2'b10: countdown_value <= data_in;
+                            default:  /* do nothing */;
+                        endcase
+                    end
+
+                    ADDR_TAP: begin  // Tap
+                        if (enabled && started && data_in == TAP_MAGIC) begin
+                            counter <= countdown_value;
+                            timeout_pending <= 1'b0;
+                        end
+                    end
+
+                    default:  /* do nothing */;
+                endcase
             end
         end
     end
 
-    // The bottom 8 bits of the stored data are added to ui_in and output to uo_out.
-    assign uo_out = wdt_data[7:0] + ui_in;
+    // ------------------------------------------------------------------------
+    // Read Handling
+    // ------------------------------------------------------------------------
+    always_comb begin
+        data   = 32'h00000000;
+        output_ready = 1'b0;
 
-    // Address 0 reads the wdt data register.
-    // Address 4 reads ui_in
-    // All other addresses read 0.
-    assign data_out = (address == 6'h0) ? wdt_data :
-                      (address == 6'h4) ? {24'h0, ui_in} :
-                      32'h0;
-
-    // All reads complete in 1 clock
-    assign data_ready = 1;
-
-    // User interrupt is generated on rising edge of ui_in[6], and cleared by writing a 1 to the low bit of address 8.
-    reg wdt_interrupt;
-    reg last_ui_in_6;
-
-    always @(posedge clk) begin
-        if (!rst_n) begin
-            wdt_interrupt <= 0;
+        if (data_read_n != 2'b11) begin
+            unique case (address)
+                ADDR_COUNTDOWN: data = countdown_value;
+                ADDR_STATUS: data = {28'd0, (counter != 0), timeout_pending, started, enabled};
+                default: data = 32'hFFFFFFFF;
+            endcase
+            output_ready = 1'b1;
         end
-
-        if (ui_in[6] && !last_ui_in_6) begin
-            wdt_interrupt <= 1;
-        end else if (address == 6'h8 && data_write_n != 2'b11 && data_in[0]) begin
-            wdt_interrupt <= 0;
-        end
-
-        last_ui_in_6 <= ui_in[6];
     end
 
-    assign user_interrupt = wdt_interrupt;
+    // ------------------------------------------------------------------------
+    // Outputs
+    // ------------------------------------------------------------------------
+
+    assign uo_out = 8'dz;  // Not used
+    assign data_out = data;
+    assign data_ready = output_ready;
+    assign user_interrupt = timeout_pending;
 
     // List all unused inputs to prevent warnings
-    // data_read_n is unused as none of our behaviour depends on whether
-    // registers are being read.
-    wire _unused = &{data_read_n, 1'b0};
+    // ui_in is unused as none of our behaviour depends on
+    // PMOD input.
+    wire _unused = &{ui_in, 1'b0};
 
 endmodule

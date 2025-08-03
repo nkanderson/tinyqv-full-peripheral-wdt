@@ -11,8 +11,19 @@ from tqv import TinyQV
 # in peripherals.v.  e.g. if your design is i_user_peri05, set this to 5.
 # The peripheral number is not used by the test harness.
 PERIPHERAL_NUM = 0
+CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 
-@cocotb.test()
+# The TAP magic number is used to reset the watchdog timer and prevent firing of an interrupt.
+# It is defined in the peripheral's source code.
+TAP_MAGIC = 0xABCD
+WDT_ADDR = {
+    "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
+    "start":      1,  # Write 1 to start timer (implicitly enables)
+    "countdown":  2,  # R/W 8/16/32-bit countdown value
+    "tap":        3,  # Write 0xABCD to reset countdown and clear interrupt
+}
+
+@cocotb.test(skip=True)
 async def test_project(dut):
     dut._log.info("Start")
 
@@ -71,7 +82,136 @@ async def test_project(dut):
     # Interrupt doesn't clear
     await ClockCycles(dut.clk, 10)
     assert await tqv.is_interrupt_asserted()
-    
+
     # Write bottom bit of address 8 high to clear
     await tqv.write_byte_reg(8, 1)
     assert not await tqv.is_interrupt_asserted()
+
+@cocotb.test()
+async def test_watchdog_interrupt_on_timeout(dut):
+    dut._log.info("Starting WDT timeout test")
+
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 10  # enough to count down in test environment
+
+    # Set countdown value
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+
+    # Start the watchdog
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Wait for timeout (countdown_ticks + a few cycles)
+    await ClockCycles(dut.clk, countdown_ticks + 3)
+
+    assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
+
+
+@cocotb.test()
+async def test_watchdog_tap_prevents_timeout(dut):
+    dut._log.info("Starting WDT tap prevents interrupt test")
+
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 20
+
+    # Set countdown
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Tap before timeout (halfway through)
+    await ClockCycles(dut.clk, countdown_ticks // 2)
+    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
+
+    # Wait again past original timeout window
+    await ClockCycles(dut.clk, countdown_ticks)
+
+    assert not await tqv.is_interrupt_asserted(), "Interrupt incorrectly asserted after tap"
+
+
+# --------------------------------------------------------------------------
+# Additional Tests (Stubs Only)
+# --------------------------------------------------------------------------
+
+@cocotb.test(skip=True)
+async def test_enable_does_not_clear_timeout(dut):
+    """Writing 0 to enable register should NOT clear a pending timeout."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_multiple_valid_taps_prevent_interrupt(dut):
+    """Multiple correct taps should keep reloading the countdown and prevent timeout."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_tap_with_wrong_value_ignored(dut):
+    """Writing incorrect value to tap address should have no effect (timeout occurs)."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_repeated_start_does_not_clear_interrupt_or_reload(dut):
+    """Multiple writes to 'start' should not reload countdown or clear timeout."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_disable_does_not_clear_interrupt(dut):
+    """Disabling watchdog after timeout should NOT clear interrupt."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_partial_write_8bit_zeros_upper_bits(dut):
+    """8-bit write to countdown should zero upper 24 bits."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_partial_write_16bit_zeros_upper_bits(dut):
+    """16-bit write to countdown should zero upper 16 bits."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_countdown_value_readback(dut):
+    """Read from countdown address should return last written value."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_start_without_countdown_value(dut):
+    """Starting the watchdog without setting countdown should not start the timer."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_tap_after_timeout_reloads_and_clears(dut):
+    """Tapping after a timeout should reload countdown and clear interrupt."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_disable_before_start_has_no_effect(dut):
+    """Disabling before the watchdog is started should not trigger an interrupt."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_status_after_start(dut):
+    """Status register reflects enabled=1, started=1, counter!=0 before timeout."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_status_after_timeout(dut):
+    """Status register reflects timeout_pending=1 after timer expiry."""
+    pass
