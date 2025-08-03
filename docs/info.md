@@ -21,6 +21,8 @@ Peripheral index: nn
 
 The watchdog timer (WDT) peripheral provides a mechanism to detect software lockups or system hangs. Once started, it begins counting down from a configured value. If the countdown reaches zero without being "tapped", the WDT asserts an interrupt (user_interrupt) to signal a system fault.
 
+A tap entails writing a specified value (0xABCD) to address 0x3. This is designed to reduce the likelihood of an inadvertent clearing of the interrupt due to corrupt or misbehaving signals. Besides the tap action, only a reset will clear the interrupt.
+
 ## Register map
 
 | Address | Name       | Access | Description                                                                 |
@@ -34,7 +36,9 @@ The watchdog timer (WDT) peripheral provides a mechanism to detect software lock
 
 ## How to test
 
-Explain how to use your project
+The WDT is configured and interacted with through memory-mapped registers using byte/half-word/word writes, with countdown resolution based on the system clock (typically 64 MHz). Configuration on system startup requires writing a countdown value to the peripheral, then starting the counter by writing to the start address. The countdown begins immediately, and proceeds until reaching zero or receiving the correct pre-specified value (0xABCD) at the tap address. If the countdown reaches zero before receiving a valid tap, the `user_interrupt` signal is asserted. If a valid tap is recieved, the countdown is restarted and any existing interrupt is de-asserted.
+
+The timer may be disabled by writing a 0 to the enable address. When re-starting the timer by writing to the start address, the counter is reset to the saved countdown value. If no countdown value has been set, the timer will not start.
 
 ## External hardware
 
