@@ -162,10 +162,29 @@ async def test_enable_does_not_clear_timeout(dut):
     assert await tqv.is_interrupt_asserted(), "Interrupt cleared by enable write of zero"
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_multiple_valid_taps_prevent_interrupt(dut):
     """Multiple correct taps should keep reloading the countdown and prevent timeout."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 100
+
+    # Set countdown
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Tap the watchdog multiple times within countdown period.
+    # The total cycles exceeds countdown_ticks, but the taps should prevent the interrupt.
+    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
+    await ClockCycles(dut.clk, countdown_ticks // 2)
+
+    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
+    await ClockCycles(dut.clk, countdown_ticks // 2)
+
+    assert not await tqv.is_interrupt_asserted(), "Interrupt incorrectly asserted after valid taps"
 
 
 @cocotb.test()
@@ -196,15 +215,50 @@ async def test_tap_with_wrong_value_ignored(dut):
 
 
 @cocotb.test(skip=True)
-async def test_repeated_start_does_not_clear_interrupt(dut):
-    """Multiple writes to 'start' should not clear timeout."""
-    pass
+async def test_start_does_not_clear_interrupt(dut):
+    """Writes to 'start' should not clear timeout."""
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 50
+
+    # Set countdown
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    await ClockCycles(dut.clk, countdown_ticks)
+
+    assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
+
+    # Writing to start should reload the counter, but not clear any existing interrupt
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    assert await tqv.is_interrupt_asserted(), "Write to start incorrectly cleared interrupt"
 
 
 @cocotb.test(skip=True)
 async def test_repeated_start_reloads_countdown(dut):
     """Multiple writes to 'start' should reload countdown."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 100
+
+    # Set countdown
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Wait half the countdown, write to start, wait the other half and check interrupt not asserted
+    await ClockCycles(dut.clk, countdown_ticks // 2)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    await ClockCycles(dut.clk, countdown_ticks // 2)
+
+    assert not await tqv.is_interrupt_asserted(), "Write to start did not reload countdown"
 
 
 @cocotb.test(skip=True)
