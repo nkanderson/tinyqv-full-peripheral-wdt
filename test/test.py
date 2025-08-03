@@ -119,18 +119,21 @@ async def test_watchdog_tap_prevents_timeout(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 20
+    countdown_ticks = 100
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-    # Tap before timeout (halfway through)
-    await ClockCycles(dut.clk, countdown_ticks // 2)
+    # Wait until we have confirmed an interrupt has been asserted
+    await ClockCycles(dut.clk, countdown_ticks)
+    assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
+
+    # Tap the watchdog to reset countdown and clear interrupt
     await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
 
-    # Wait again past original timeout window
-    await ClockCycles(dut.clk, countdown_ticks)
+    # Wait again a few cycles and then check that the interrupt is not asserted
+    await ClockCycles(dut.clk, countdown_ticks // 4)
 
     assert not await tqv.is_interrupt_asserted(), "Interrupt incorrectly asserted after tap"
 
