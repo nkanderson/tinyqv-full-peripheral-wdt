@@ -16,6 +16,7 @@ CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 # The TAP magic number is used to reset the watchdog timer and prevent firing of an interrupt.
 # It is defined in the peripheral's source code.
 TAP_MAGIC = 0xABCD
+TAP_INVALID = 0xFFFF
 WDT_ADDR = {
     "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
     "start":      1,  # Write 1 to start timer (implicitly enables)
@@ -138,14 +139,27 @@ async def test_watchdog_tap_prevents_timeout(dut):
     assert not await tqv.is_interrupt_asserted(), "Interrupt incorrectly asserted after tap"
 
 
-# --------------------------------------------------------------------------
-# Additional Tests (Stubs Only)
-# --------------------------------------------------------------------------
-
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_enable_does_not_clear_timeout(dut):
     """Writing 0 to enable register should NOT clear a pending timeout."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 10
+
+    # Set countdown
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Wait until we have confirmed an interrupt has been asserted
+    await ClockCycles(dut.clk, countdown_ticks)
+    assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
+
+    await tqv.write_word_reg(WDT_ADDR["enable"], 0)
+
+    assert await tqv.is_interrupt_asserted(), "Interrupt cleared by enable write of zero"
 
 
 @cocotb.test(skip=True)
@@ -154,10 +168,31 @@ async def test_multiple_valid_taps_prevent_interrupt(dut):
     pass
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_tap_with_wrong_value_ignored(dut):
     """Writing incorrect value to tap address should have no effect (timeout occurs)."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 100
+
+    # Set countdown
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Wait until we have confirmed an interrupt has been asserted
+    await ClockCycles(dut.clk, countdown_ticks)
+    assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
+
+    # Tap the watchdog with valid number, should *not* reset countdown and clear interrupt
+    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_INVALID)
+
+    # Wait again a few cycles and then check that the interrupt is still asserted
+    await ClockCycles(dut.clk, countdown_ticks // 4)
+
+    assert await tqv.is_interrupt_asserted(), "Interrupt cleared by invalid tap"
 
 
 @cocotb.test(skip=True)
