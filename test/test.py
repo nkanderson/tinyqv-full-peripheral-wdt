@@ -158,8 +158,14 @@ async def test_tap_with_wrong_value_ignored(dut):
 
 
 @cocotb.test(skip=True)
-async def test_repeated_start_does_not_clear_interrupt_or_reload(dut):
-    """Multiple writes to 'start' should not reload countdown or clear timeout."""
+async def test_repeated_start_does_not_clear_interrupt(dut):
+    """Multiple writes to 'start' should not clear timeout."""
+    pass
+
+
+@cocotb.test(skip=True)
+async def test_repeated_start_reloads_countdown(dut):
+    """Multiple writes to 'start' should reload countdown."""
     pass
 
 

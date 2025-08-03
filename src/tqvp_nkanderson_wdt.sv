@@ -80,6 +80,7 @@ module tqvp_nkanderson_wdt (
                         if (countdown_value != 0) begin
                             enabled <= 1'b1;
                             started <= 1'b1;
+                            counter <= countdown_value;
                         end
                     end
 
