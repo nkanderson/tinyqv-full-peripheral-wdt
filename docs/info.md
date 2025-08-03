@@ -13,21 +13,24 @@ You can also include images in this folder and reference them in the markdown. E
 
 # Your project title
 
-Author: Your Name
+Author: Niklas Anderson
 
 Peripheral index: nn
 
 ## What it does
 
-Explain what your peripheral does and how it works
+The watchdog timer (WDT) peripheral provides a mechanism to detect software lockups or system hangs. Once started, it begins counting down from a configured value. If the countdown reaches zero without being "tapped", the WDT asserts an interrupt (user_interrupt) to signal a system fault.
 
 ## Register map
 
-Document the registers that are used to interact with your peripheral
+| Address | Name       | Access | Description                                                                 |
+|---------|------------|--------|-----------------------------------------------------------------------------|
+| 0    | ENABLE     | W      | Write 1 to enable the watchdog, 0 to disable. Does not clear timeout.       |
+| 1    | START      | W      | Starts the watchdog (also enables). Has no effect if countdown = 0.         |
+| 2    | COUNTDOWN  | R/W    | Sets or reads the countdown value (in clock cycles). 8/16/32-bit writes allowed. |
+| 3    | TAP        | W      | Write 0xABCD to reset countdown and clear timeout, only if enabled and started. |
+| 4    | STATUS     | R      | Bit 0: enabled, Bit 1: started, Bit 2: timeout_pending, Bit 3: counter active |
 
-| Address | Name  | Access | Description                                                         |
-|---------|-------|--------|---------------------------------------------------------------------|
-| 0x00    | DATA  | R/W    | A word of data                                                      |
 
 ## How to test
 
@@ -35,4 +38,4 @@ Explain how to use your project
 
 ## External hardware
 
-List external hardware used in your project (e.g. PMOD, LED display, etc), if any
+None
