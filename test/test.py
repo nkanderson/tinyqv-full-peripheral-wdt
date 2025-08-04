@@ -23,6 +23,7 @@ WDT_ADDR = {
     "start":      1,  # Write 1 to start timer (implicitly enables)
     "countdown":  2,  # R/W 8/16/32-bit countdown value
     "tap":        3,  # Write 0xABCD to reset countdown and clear interrupt
+    "status":     4,  # Read status register
 }
 
 @cocotb.test(skip=True)
@@ -326,24 +327,65 @@ async def test_start_without_countdown_value(dut):
 
 
 @cocotb.test(skip=True)
-async def test_tap_after_timeout_reloads_and_clears(dut):
-    """Tapping after a timeout should reload countdown and clear interrupt."""
-    pass
-
-
-@cocotb.test(skip=True)
 async def test_disable_before_start_has_no_effect(dut):
     """Disabling before the watchdog is started should not trigger an interrupt."""
     pass
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_status_after_start(dut):
     """Status register reflects enabled=1, started=1, counter!=0 before timeout."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 100
+
+    # Set countdown and start the watchdog
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    # Read the status register
+    status = await tqv.read_word_reg(WDT_ADDR["status"])
+
+    enabled         = (status >> 0) & 1
+    started         = (status >> 1) & 1
+    timeout_pending = (status >> 2) & 1
+    counter_active  = (status >> 3) & 1
+
+    assert enabled == 1, "Status: expected enabled=1"
+    assert started == 1, "Status: expected started=1"
+    assert timeout_pending == 0, "Status: expected timeout_pending=0"
+    assert counter_active == 1, "Status: expected counter!=0"
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_status_after_timeout(dut):
     """Status register reflects timeout_pending=1 after timer expiry."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = 10
+
+    # Set countdown and start the watchdog
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
+
+    await ClockCycles(dut.clk, countdown_ticks)
+    assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
+
+    # Read the status register
+    status = await tqv.read_word_reg(WDT_ADDR["status"])
+
+    enabled         = (status >> 0) & 1
+    started         = (status >> 1) & 1
+    timeout_pending = (status >> 2) & 1
+    counter_active  = (status >> 3) & 1
+
+    assert enabled == 1, "Status: expected enabled=1 after timeout"
+    assert started == 1, "Status: expected started=1 after timeout"
+    assert timeout_pending == 1, "Status: expected timeout_pending=1 after timeout"
+    assert counter_active == 0, "Status: expected counter=0 after timeout"
