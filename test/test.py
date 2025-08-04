@@ -7,20 +7,18 @@ from cocotb.triggers import ClockCycles
 
 from tqv import TinyQV
 
-# When submitting your design, change this to the peripheral number
-# in peripherals.v.  e.g. if your design is i_user_peri05, set this to 5.
-# The peripheral number is not used by the test harness.
-PERIPHERAL_NUM = 0
+PERIPHERAL_NUM = 6
 CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 
 # The TAP magic number is used to reset the watchdog timer and prevent firing of an interrupt.
 # It is defined in the peripheral's source code.
 TAP_MAGIC = 0xABCD
 TAP_INVALID = 0xFFFF
-# FIXME: Trying a smaller number because the test job in CI is not finishing. Oddly, the GDS
-# job doesn't seem to have a problem with this.
+# FIXME: Trying a smaller number because the test job in github actions is not finishing.
+# This shouldn't be an issue though, since the test should not be waiting for a full countdown.
+# The GDS job doesn't seem to have a problem with this value either.
 # LARGE_COUNTDOWN = 0x12345678
-LARGE_COUNTDOWN = 0x00010000
+LARGE_COUNTDOWN = 0x00000100
 WDT_ADDR = {
     "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
     "start":      1,  # Write 1 to start timer (implicitly enables)
@@ -46,71 +44,6 @@ def decode_wdt_status(status_word: int) -> dict:
         "timeout_pending": bool((status_word >> 2) & 1),
         "counter_active":  bool((status_word >> 3) & 1),
     }
-
-
-@cocotb.test(skip=True)
-async def test_project(dut):
-    dut._log.info("Start")
-
-    # Set the clock period to 100 ns (10 MHz)
-    clock = Clock(dut.clk, 100, units="ns")
-    cocotb.start_soon(clock.start())
-
-    # Interact with your design's registers through this TinyQV class.
-    # This will allow the same test to be run when your design is integrated
-    # with TinyQV - the implementation of this class will be replaces with a
-    # different version that uses Risc-V instructions instead of the SPI test
-    # harness interface to read and write the registers.
-    tqv = TinyQV(dut, PERIPHERAL_NUM)
-
-    # Reset
-    await tqv.reset()
-
-    dut._log.info("Test project behavior")
-
-    # Test register write and read back
-    await tqv.write_word_reg(0, 0x82345678)
-    assert await tqv.read_byte_reg(0) == 0x78
-    assert await tqv.read_hword_reg(0) == 0x5678
-    assert await tqv.read_word_reg(0) == 0x82345678
-
-    # Set an input value, in the example this will be added to the register value
-    dut.ui_in.value = 30
-
-    # Wait for two clock cycles to see the output values, because ui_in is synchronized over two clocks,
-    # and a further clock is required for the output to propagate.
-    await ClockCycles(dut.clk, 3)
-
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 0x96
-
-    # Input value should be read back from register 1
-    assert await tqv.read_byte_reg(4) == 30
-
-    # Zero should be read back from register 2
-    assert await tqv.read_word_reg(8) == 0
-
-    # A second write should work
-    await tqv.write_word_reg(0, 40)
-    assert dut.uo_out.value == 70
-
-    # Test the interrupt, generated when ui_in[6] goes high
-    dut.ui_in[6].value = 1
-    await ClockCycles(dut.clk, 1)
-    dut.ui_in[6].value = 0
-
-    # Interrupt asserted
-    await ClockCycles(dut.clk, 3)
-    assert await tqv.is_interrupt_asserted()
-
-    # Interrupt doesn't clear
-    await ClockCycles(dut.clk, 10)
-    assert await tqv.is_interrupt_asserted()
-
-    # Write bottom bit of address 8 high to clear
-    await tqv.write_byte_reg(8, 1)
-    assert not await tqv.is_interrupt_asserted()
 
 
 @cocotb.test()
@@ -279,7 +212,6 @@ async def test_repeated_start_reloads_countdown(dut):
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-    # FIXME: Trying to get to timing right, given the extended number of cycles the write_word_reg takes.
     # Wait 1/4 of the countdown, write to start, wait the rest of the countdown time and check interrupt not asserted
     # NOTE: The write_word_reg takes enough cycles that it is too slow to call the write when half of the
     # countdown period has elapse.
