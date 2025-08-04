@@ -112,9 +112,9 @@ module tqvp_nkanderson_wdt (
     always_ff @(posedge clk) begin
         data_ready_reg <= (data_read_n != 2'b11);
         unique case (address)
-        ADDR_COUNTDOWN: data_reg <= countdown_value;
-        ADDR_STATUS:    data_reg <= {28'd0, (counter != 0), timeout_pending, started, enabled};
-        default:        data_reg <= 32'hFFFFFFFF;
+            ADDR_COUNTDOWN: data_reg <= countdown_value;
+            ADDR_STATUS:    data_reg <= {28'd0, (counter != 0), timeout_pending, started, enabled};
+            default:        data_reg <= 32'hFFFFFFFF;
         endcase
     end
 
