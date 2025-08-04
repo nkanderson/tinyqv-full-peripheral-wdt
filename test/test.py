@@ -255,11 +255,13 @@ async def test_repeated_start_reloads_countdown(dut):
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-    # Wait half the countdown, write to start, wait the other half and check interrupt not asserted
-    await ClockCycles(dut.clk, countdown_ticks // 2)
+    # Wait 1/4 of the countdown, write to start, wait the rest of the countdown time and check interrupt not asserted
+    # NOTE: The write_word_reg takes enough cycles that it is too slow to call the write when half of the
+    # countdown period has elapse.
+    await ClockCycles(dut.clk, countdown_ticks // 4)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-    await ClockCycles(dut.clk, countdown_ticks // 2)
+    await ClockCycles(dut.clk, countdown_ticks // (3/4))
 
     assert not await tqv.is_interrupt_asserted(), "Write to start did not reload countdown"
 
