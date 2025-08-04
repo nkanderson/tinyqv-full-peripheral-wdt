@@ -242,7 +242,7 @@ async def test_start_does_not_clear_interrupt(dut):
     assert await tqv.is_interrupt_asserted(), "Write to start incorrectly cleared interrupt"
 
 
-@cocotb.test()
+@cocotb.test(skip=True)
 async def test_repeated_start_reloads_countdown(dut):
     """Multiple writes to 'start' should reload countdown."""
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
@@ -256,6 +256,7 @@ async def test_repeated_start_reloads_countdown(dut):
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
+    # FIXME: Trying to get to timing right, given the extended number of cycles the write_word_reg takes.
     # Wait 1/4 of the countdown, write to start, wait the rest of the countdown time and check interrupt not asserted
     # NOTE: The write_word_reg takes enough cycles that it is too slow to call the write when half of the
     # countdown period has elapse.
