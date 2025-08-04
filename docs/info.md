@@ -27,11 +27,11 @@ A tap entails writing a specified value (0xABCD) to address 0x3. This is designe
 
 | Address | Name       | Access | Description                                                                 |
 |---------|------------|--------|-----------------------------------------------------------------------------|
-|  0x0  | ENABLE     | W      | Write 1 to enable the watchdog, 0 to disable. Does not clear timeout.       |
-|  0x1  | START      | W      | Starts the watchdog (also enables). Has no effect if countdown = 0.         |
-|  0x2  | COUNTDOWN  | R/W    | Sets or reads the countdown value (in clock cycles). 8/16/32-bit writes allowed. |
-|  0x3  | TAP        | W      | Write 0xABCD to reset countdown and clear timeout, only if enabled and started. |
-|  0x4  | STATUS     | R      | Bit 0: enabled, Bit 1: started, Bit 2: timeout_pending, Bit 3: counter active |
+|  0x00  | ENABLE     | W      | Write 1 to enable the watchdog, 0 to disable. Does not clear timeout.       |
+|  0x04  | START      | W      | Starts the watchdog (also enables). Has no effect if countdown = 0.         |
+|  0x08  | COUNTDOWN  | R/W    | Sets or reads the countdown value (in clock cycles). 8/16/32-bit writes allowed. |
+|  0x0C  | TAP        | W      | Write 0xABCD to reset countdown and clear timeout, only if enabled and started. |
+|  0x10  | STATUS     | R      | Bit 0: enabled, Bit 1: started, Bit 2: timeout_pending, Bit 3: counter active |
 
 
 ## How to test

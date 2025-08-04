@@ -34,11 +34,11 @@ module tqvp_nkanderson_wdt (
     // ------------------------------------------------------------------------
     localparam TAP_MAGIC = 32'h0000ABCD;  // reduce likelihood of corrupt data inadvertently signalling tap
     // Register address map
-    localparam ADDR_ENABLE = 6'd0;
-    localparam ADDR_START = 6'd1;
-    localparam ADDR_COUNTDOWN = 6'd2;
-    localparam ADDR_TAP = 6'd3;
-    localparam ADDR_STATUS = 6'd4;
+    localparam ADDR_ENABLE = 6'h00;  // 0
+    localparam ADDR_START = 6'h04;  // 4
+    localparam ADDR_COUNTDOWN = 6'h08;  // 8
+    localparam ADDR_TAP = 6'h0C;  // 12
+    localparam ADDR_STATUS = 6'h10;  // 16
 
     logic [31:0] countdown_value;  // configured reload value
     logic [31:0] counter;  // countdown timer

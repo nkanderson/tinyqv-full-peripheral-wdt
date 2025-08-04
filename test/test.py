@@ -16,11 +16,11 @@ TAP_MAGIC = 0xABCD
 TAP_INVALID = 0xFFFF
 LARGE_COUNTDOWN = 0x12345678
 WDT_ADDR = {
-    "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
-    "start":      1,  # Write 1 to start timer (implicitly enables)
-    "countdown":  2,  # R/W 8/16/32-bit countdown value
-    "tap":        3,  # Write 0xABCD to reset countdown and clear interrupt
-    "status":     4,  # Read status register
+    "enable":     0x00,  # Write 1 to enable, 0 to disable (also clears interrupt)
+    "start":      0x04,  # Write 1 to start timer (implicitly enables)
+    "countdown":  0x08,  # R/W 8/16/32-bit countdown value
+    "tap":        0x0C,  # Write 0xABCD to reset countdown and clear interrupt
+    "status":     0x10,  # Read status register
 }
 
 
