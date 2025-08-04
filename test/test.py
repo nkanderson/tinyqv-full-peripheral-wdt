@@ -262,7 +262,7 @@ async def test_start_does_not_clear_interrupt(dut):
     assert await tqv.is_interrupt_asserted(), "Write to start incorrectly cleared interrupt"
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_repeated_start_reloads_countdown(dut):
     """Multiple writes to 'start' should reload countdown."""
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
@@ -270,7 +270,7 @@ async def test_repeated_start_reloads_countdown(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 100
+    countdown_ticks = 200
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
@@ -283,7 +283,7 @@ async def test_repeated_start_reloads_countdown(dut):
     await ClockCycles(dut.clk, countdown_ticks // 4)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-    await ClockCycles(dut.clk, countdown_ticks // (3/4))
+    await ClockCycles(dut.clk, 3 * (countdown_ticks // 4))
 
     assert not await tqv.is_interrupt_asserted(), "Write to start did not reload countdown"
 
@@ -368,7 +368,7 @@ async def test_status_after_start(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 100
+    countdown_ticks = 200
 
     # Set countdown and start the watchdog
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
