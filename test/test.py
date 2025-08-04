@@ -354,10 +354,10 @@ async def test_start_without_countdown_value(dut):
     status_word = await tqv.read_word_reg(WDT_ADDR["status"])
     status = decode_wdt_status(status_word)
 
-    assert not status["enabled"] == 0, "Status: expected enabled=0 without countdown"
-    assert not status["started"] == 0, "Status: expected started=0 without countdown"
-    assert not status["timeout_pending"] == 0, "Status: expected timeout_pending=0"
-    assert not status["counter_active"] == 0, "Status: expected counter=0"
+    assert not status["enabled"], "Status: expected enabled=0 without countdown"
+    assert not status["started"], "Status: expected started=0 without countdown"
+    assert not status["timeout_pending"], "Status: expected timeout_pending=0"
+    assert not status["counter_active"], "Status: expected counter=0"
 
 
 @cocotb.test()
@@ -378,10 +378,10 @@ async def test_status_after_start(dut):
     status_word = await tqv.read_word_reg(WDT_ADDR["status"])
     status = decode_wdt_status(status_word)
 
-    assert status["enabled"] == 1, "Status: expected enabled=1"
-    assert status["started"] == 1, "Status: expected started=1"
-    assert not status["timeout_pending"] == 0, "Status: expected timeout_pending=0"
-    assert status["counter_active"] == 1, "Status: expected counter!=0"
+    assert status["enabled"], "Status: expected enabled=1"
+    assert status["started"], "Status: expected started=1"
+    assert not status["timeout_pending"], "Status: expected timeout_pending=0"
+    assert status["counter_active"], "Status: expected counter!=0"
 
 
 @cocotb.test()
@@ -405,7 +405,7 @@ async def test_status_after_timeout(dut):
     status_word = await tqv.read_word_reg(WDT_ADDR["status"])
     status = decode_wdt_status(status_word)
 
-    assert status["enabled"] == 1, "Status: expected enabled=1 after timeout"
-    assert status["started"] == 1, "Status: expected started=1 after timeout"
-    assert status["timeout_pending"] == 1, "Status: expected timeout_pending=1 after timeout"
-    assert not status["counter_active"] == 0, "Status: expected counter=0 after timeout"
+    assert status["enabled"], "Status: expected enabled=1 after timeout"
+    assert status["started"], "Status: expected started=1 after timeout"
+    assert status["timeout_pending"], "Status: expected timeout_pending=1 after timeout"
+    assert not status["counter_active"], "Status: expected counter=0 after timeout"
