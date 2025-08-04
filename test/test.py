@@ -14,11 +14,7 @@ CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 # It is defined in the peripheral's source code.
 TAP_MAGIC = 0xABCD
 TAP_INVALID = 0xFFFF
-# FIXME: Trying a smaller number because the test job in github actions is not finishing.
-# This shouldn't be an issue though, since the test should not be waiting for a full countdown.
-# The GDS job doesn't seem to have a problem with this value either.
-# LARGE_COUNTDOWN = 0x12345678
-LARGE_COUNTDOWN = 0x00000100
+LARGE_COUNTDOWN = 0x12345678
 WDT_ADDR = {
     "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
     "start":      1,  # Write 1 to start timer (implicitly enables)
@@ -228,12 +224,9 @@ async def test_countdown_value_readback(dut):
     await tqv.reset()
 
     countdown_ticks = LARGE_COUNTDOWN
-    dut._log.info("Countdown ticks has been assigned")
 
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
-    dut._log.info("Countdown has been written")
     readback = await tqv.read_word_reg(WDT_ADDR["countdown"])
-    dut._log.info("Countdown has been read back")
     assert readback == countdown_ticks, f"Expected 0x{countdown_ticks:08X}, got 0x{readback:08X}"
 
 
@@ -343,3 +336,19 @@ async def test_status_after_timeout(dut):
     assert status["started"], "Status: expected started=1 after timeout"
     assert status["timeout_pending"], "Status: expected timeout_pending=1 after timeout"
     assert not status["counter_active"], "Status: expected counter=0 after timeout"
+
+
+@cocotb.test()
+async def test_disable_before_start_has_no_effect(dut):
+    """Disabling before watchdog is started should have no effect and not assert interrupt."""
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    # Write 0 to disable (has no effect before start)
+    await tqv.write_word_reg(WDT_ADDR["enable"], 0)
+
+    # Wait a few cycles and confirm no spurious interrupt
+    await ClockCycles(dut.clk, 10)
+    assert not await tqv.is_interrupt_asserted(), "Unexpected interrupt before WDT was started"

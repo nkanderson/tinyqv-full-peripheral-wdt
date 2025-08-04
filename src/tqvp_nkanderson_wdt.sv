@@ -47,8 +47,8 @@ module tqvp_nkanderson_wdt (
     logic        started;  // set by write to address 1
     logic        timeout_pending;  // true if timer expired and interrupt is active
 
-    logic [31:0] data;  // output data
-    logic        output_ready;  // output data to the TinyQV core
+    logic [31:0] data_reg;  // output data
+    logic        data_ready_reg;
 
     // ------------------------------------------------------------------------
     // Write Handling
@@ -109,23 +109,6 @@ module tqvp_nkanderson_wdt (
     // ------------------------------------------------------------------------
     // Read Handling
     // ------------------------------------------------------------------------
-    // always_comb begin
-    //     data   = 32'h00000000;
-    //     output_ready = 1'b0;
-
-    //     if (data_read_n != 2'b11) begin
-    //         unique case (address)
-    //             ADDR_COUNTDOWN: data = countdown_value;
-    //             ADDR_STATUS: data = {28'd0, (counter != 0), timeout_pending, started, enabled};
-    //             default: data = 32'hFFFFFFFF;
-    //         endcase
-    //         output_ready = 1'b1;
-    //     end
-    // end
-
-    logic        data_ready_reg;
-    logic [31:0] data_reg;
-
     always_ff @(posedge clk) begin
         data_ready_reg <= (data_read_n != 2'b11);
         unique case (address)
@@ -135,17 +118,12 @@ module tqvp_nkanderson_wdt (
         endcase
     end
 
-    assign data_out = data_reg;
-    assign data_ready = data_ready_reg;
-
-
     // ------------------------------------------------------------------------
     // Outputs
     // ------------------------------------------------------------------------
-
     assign uo_out = 8'd0;  // Not used
-    // assign data_out = data;
-    // assign data_ready = output_ready;
+    assign data_out = data_reg;
+    assign data_ready = data_ready_reg;
     assign user_interrupt = timeout_pending;
 
     // List all unused inputs to prevent warnings
