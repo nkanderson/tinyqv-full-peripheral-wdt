@@ -17,6 +17,7 @@ CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 # It is defined in the peripheral's source code.
 TAP_MAGIC = 0xABCD
 TAP_INVALID = 0xFFFF
+LARGE_COUNTDOWN = 0x12345678
 WDT_ADDR = {
     "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
     "start":      1,  # Write 1 to start timer (implicitly enables)
@@ -266,28 +267,55 @@ async def test_repeated_start_reloads_countdown(dut):
     assert not await tqv.is_interrupt_asserted(), "Write to start did not reload countdown"
 
 
-@cocotb.test(skip=True)
-async def test_disable_does_not_clear_interrupt(dut):
-    """Disabling watchdog after timeout should NOT clear interrupt."""
-    pass
-
-
-@cocotb.test(skip=True)
-async def test_partial_write_8bit_zeros_upper_bits(dut):
-    """8-bit write to countdown should zero upper 24 bits."""
-    pass
-
-
-@cocotb.test(skip=True)
-async def test_partial_write_16bit_zeros_upper_bits(dut):
-    """16-bit write to countdown should zero upper 16 bits."""
-    pass
-
-
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_countdown_value_readback(dut):
     """Read from countdown address should return last written value."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    countdown_ticks = LARGE_COUNTDOWN
+
+    await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    readback = await tqv.read_word_reg(WDT_ADDR["countdown"])
+    assert readback == countdown_ticks, f"Expected 0x{countdown_ticks:08X}, got 0x{readback:08X}"
+
+
+@cocotb.test()
+async def test_partial_write_8bit_zeros_upper_bits(dut):
+    """8-bit write to countdown should zero upper 24 bits."""
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    # Set to known large value first
+    await tqv.write_word_reg(WDT_ADDR["countdown"], LARGE_COUNTDOWN)
+
+    # Now write only the low 8 bits
+    await tqv.write_byte_reg(WDT_ADDR["countdown"], 0x42)
+
+    readback = await tqv.read_word_reg(WDT_ADDR["countdown"])
+    assert readback == 0x00000042, f"Expected 0x00000042, got 0x{readback:08X}"
+
+
+@cocotb.test()
+async def test_partial_write_16bit_zeros_upper_bits(dut):
+    """16-bit write to countdown should zero upper 16 bits."""
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
+
+    # Set to known large value first
+    await tqv.write_word_reg(WDT_ADDR["countdown"], LARGE_COUNTDOWN)
+
+    # Now write only the low 16 bits
+    await tqv.write_hword_reg(WDT_ADDR["countdown"], 0xFFFF)
+
+    readback = await tqv.read_word_reg(WDT_ADDR["countdown"])
+    assert readback == 0x0000FFFF, f"Expected 0x0000BEEF, got 0x{readback:08X}"
 
 
 @cocotb.test(skip=True)
