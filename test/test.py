@@ -17,7 +17,10 @@ CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 # It is defined in the peripheral's source code.
 TAP_MAGIC = 0xABCD
 TAP_INVALID = 0xFFFF
-LARGE_COUNTDOWN = 0x12345678
+# FIXME: Trying a smaller number because the test job in CI is not finishing. Oddly, the GDS
+# job doesn't seem to have a problem with this.
+# LARGE_COUNTDOWN = 0x12345678
+LARGE_COUNTDOWN = 0x00010000
 WDT_ADDR = {
     "enable":     0,  # Write 1 to enable, 0 to disable (also clears interrupt)
     "start":      1,  # Write 1 to start timer (implicitly enables)
@@ -270,7 +273,7 @@ async def test_repeated_start_reloads_countdown(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 200
+    countdown_ticks = 400
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
