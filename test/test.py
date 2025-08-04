@@ -49,8 +49,6 @@ def decode_wdt_status(status_word: int) -> dict:
 @cocotb.test()
 async def test_watchdog_interrupt_on_timeout(dut):
     """Basic test to check that the watchdog timer asserts an interrupt on timeout."""
-    dut._log.info("Starting WDT timeout test")
-
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
     cocotb.start_soon(clock.start())
     tqv = TinyQV(dut, PERIPHERAL_NUM)
@@ -73,8 +71,6 @@ async def test_watchdog_interrupt_on_timeout(dut):
 @cocotb.test()
 async def test_watchdog_tap_prevents_timeout(dut):
     """Basic test to check that tapping the watchdog prevents an interrupt."""
-    dut._log.info("Starting WDT tap prevents interrupt test")
-
     clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
     cocotb.start_soon(clock.start())
     tqv = TinyQV(dut, PERIPHERAL_NUM)
@@ -232,9 +228,12 @@ async def test_countdown_value_readback(dut):
     await tqv.reset()
 
     countdown_ticks = LARGE_COUNTDOWN
+    dut._log.info("Countdown ticks has been assigned")
 
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
+    dut._log.info("Countdown has been written")
     readback = await tqv.read_word_reg(WDT_ADDR["countdown"])
+    dut._log.info("Countdown has been read back")
     assert readback == countdown_ticks, f"Expected 0x{countdown_ticks:08X}, got 0x{readback:08X}"
 
 
