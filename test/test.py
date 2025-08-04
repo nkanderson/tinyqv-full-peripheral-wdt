@@ -26,6 +26,25 @@ WDT_ADDR = {
     "status":     4,  # Read status register
 }
 
+
+def decode_wdt_status(status_word: int) -> dict:
+    """
+    Decode the WDT status register into named boolean flags.
+
+    Bit layout:
+      Bit 0: enabled
+      Bit 1: started
+      Bit 2: timeout_pending
+      Bit 3: counter_active (counter != 0)
+    """
+    return {
+        "enabled":         bool((status_word >> 0) & 1),
+        "started":         bool((status_word >> 1) & 1),
+        "timeout_pending": bool((status_word >> 2) & 1),
+        "counter_active":  bool((status_word >> 3) & 1),
+    }
+
+
 @cocotb.test(skip=True)
 async def test_project(dut):
     dut._log.info("Start")
@@ -320,16 +339,25 @@ async def test_partial_write_16bit_zeros_upper_bits(dut):
     assert readback == 0x0000FFFF, f"Expected 0x0000BEEF, got 0x{readback:08X}"
 
 
-@cocotb.test(skip=True)
+@cocotb.test()
 async def test_start_without_countdown_value(dut):
     """Starting the watchdog without setting countdown should not start the timer."""
-    pass
+    clock = Clock(dut.clk, CLK_PERIOD_NS, units="ns")
+    cocotb.start_soon(clock.start())
+    tqv = TinyQV(dut, PERIPHERAL_NUM)
+    await tqv.reset()
 
+    # Do not set countdown, just issue start
+    await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-@cocotb.test(skip=True)
-async def test_disable_before_start_has_no_effect(dut):
-    """Disabling before the watchdog is started should not trigger an interrupt."""
-    pass
+    # Read status register
+    status_word = await tqv.read_word_reg(WDT_ADDR["status"])
+    status = decode_wdt_status(status_word)
+
+    assert not status["enabled"] == 0, "Status: expected enabled=0 without countdown"
+    assert not status["started"] == 0, "Status: expected started=0 without countdown"
+    assert not status["timeout_pending"] == 0, "Status: expected timeout_pending=0"
+    assert not status["counter_active"] == 0, "Status: expected counter=0"
 
 
 @cocotb.test()
@@ -347,17 +375,13 @@ async def test_status_after_start(dut):
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
     # Read the status register
-    status = await tqv.read_word_reg(WDT_ADDR["status"])
+    status_word = await tqv.read_word_reg(WDT_ADDR["status"])
+    status = decode_wdt_status(status_word)
 
-    enabled         = (status >> 0) & 1
-    started         = (status >> 1) & 1
-    timeout_pending = (status >> 2) & 1
-    counter_active  = (status >> 3) & 1
-
-    assert enabled == 1, "Status: expected enabled=1"
-    assert started == 1, "Status: expected started=1"
-    assert timeout_pending == 0, "Status: expected timeout_pending=0"
-    assert counter_active == 1, "Status: expected counter!=0"
+    assert status["enabled"] == 1, "Status: expected enabled=1"
+    assert status["started"] == 1, "Status: expected started=1"
+    assert not status["timeout_pending"] == 0, "Status: expected timeout_pending=0"
+    assert status["counter_active"] == 1, "Status: expected counter!=0"
 
 
 @cocotb.test()
@@ -378,14 +402,10 @@ async def test_status_after_timeout(dut):
     assert await tqv.is_interrupt_asserted(), "Interrupt not asserted on timeout"
 
     # Read the status register
-    status = await tqv.read_word_reg(WDT_ADDR["status"])
+    status_word = await tqv.read_word_reg(WDT_ADDR["status"])
+    status = decode_wdt_status(status_word)
 
-    enabled         = (status >> 0) & 1
-    started         = (status >> 1) & 1
-    timeout_pending = (status >> 2) & 1
-    counter_active  = (status >> 3) & 1
-
-    assert enabled == 1, "Status: expected enabled=1 after timeout"
-    assert started == 1, "Status: expected started=1 after timeout"
-    assert timeout_pending == 1, "Status: expected timeout_pending=1 after timeout"
-    assert counter_active == 0, "Status: expected counter=0 after timeout"
+    assert status["enabled"] == 1, "Status: expected enabled=1 after timeout"
+    assert status["started"] == 1, "Status: expected started=1 after timeout"
+    assert status["timeout_pending"] == 1, "Status: expected timeout_pending=1 after timeout"
+    assert not status["counter_active"] == 0, "Status: expected counter=0 after timeout"
