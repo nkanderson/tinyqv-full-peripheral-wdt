@@ -14,6 +14,9 @@ CLK_PERIOD_NS = 100  # 10 MHz test clock (instead of 64 MHz)
 # It is defined in the peripheral's source code.
 TAP_MAGIC = 0xABCD
 TAP_INVALID = 0xFFFF
+# Standard countdown of 300 cycles, used for testing where a write may take a little over
+# 100 cycles, and a read a little under 100 cycles. Leaves time for writing the tap value.
+STANDARD_COUNTDOWN = 0x0000012C
 LARGE_COUNTDOWN = 0x12345678
 WDT_ADDR = {
     "enable":     0x00,  # Write 1 to enable, 0 to disable (also clears interrupt)
@@ -72,7 +75,7 @@ async def test_watchdog_tap_prevents_timeout(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 100
+    countdown_ticks = STANDARD_COUNTDOWN
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
@@ -86,7 +89,7 @@ async def test_watchdog_tap_prevents_timeout(dut):
     await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
 
     # Wait again a few cycles and then check that the interrupt is not asserted
-    await ClockCycles(dut.clk, countdown_ticks // 4)
+    await ClockCycles(dut.clk, countdown_ticks // 10)
 
     assert not await tqv.is_interrupt_asserted(), "Interrupt incorrectly asserted after tap"
 
@@ -122,7 +125,7 @@ async def test_multiple_valid_taps_prevent_interrupt(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 100
+    countdown_ticks = STANDARD_COUNTDOWN
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
@@ -130,11 +133,11 @@ async def test_multiple_valid_taps_prevent_interrupt(dut):
 
     # Tap the watchdog multiple times within countdown period.
     # The total cycles exceeds countdown_ticks, but the taps should prevent the interrupt.
-    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
     await ClockCycles(dut.clk, countdown_ticks // 2)
+    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
 
-    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
     await ClockCycles(dut.clk, countdown_ticks // 2)
+    await tqv.write_word_reg(WDT_ADDR["tap"], TAP_MAGIC)
 
     assert not await tqv.is_interrupt_asserted(), "Interrupt incorrectly asserted after valid taps"
 
@@ -147,7 +150,7 @@ async def test_tap_with_wrong_value_ignored(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 100
+    countdown_ticks = STANDARD_COUNTDOWN
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
@@ -161,7 +164,7 @@ async def test_tap_with_wrong_value_ignored(dut):
     await tqv.write_word_reg(WDT_ADDR["tap"], TAP_INVALID)
 
     # Wait again a few cycles and then check that the interrupt is still asserted
-    await ClockCycles(dut.clk, countdown_ticks // 4)
+    await ClockCycles(dut.clk, countdown_ticks // 10)
 
     assert await tqv.is_interrupt_asserted(), "Interrupt cleared by invalid tap"
 
@@ -198,19 +201,19 @@ async def test_repeated_start_reloads_countdown(dut):
     tqv = TinyQV(dut, PERIPHERAL_NUM)
     await tqv.reset()
 
-    countdown_ticks = 400
+    # NOTE: The write_word_reg takes enough cycles that we need a long enough WDT cycle such that
+    # we allow for about 100 cycles for the final read.
+    countdown_ticks = 600
 
     # Set countdown
     await tqv.write_word_reg(WDT_ADDR["countdown"], countdown_ticks)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
     # Wait 1/4 of the countdown, write to start, wait the rest of the countdown time and check interrupt not asserted
-    # NOTE: The write_word_reg takes enough cycles that it is too slow to call the write when half of the
-    # countdown period has elapse.
-    await ClockCycles(dut.clk, countdown_ticks // 4)
+    await ClockCycles(dut.clk, countdown_ticks // 3)
     await tqv.write_word_reg(WDT_ADDR["start"], 1)
 
-    await ClockCycles(dut.clk, 3 * (countdown_ticks // 4))
+    await ClockCycles(dut.clk, 2 * (countdown_ticks // 3))
 
     assert not await tqv.is_interrupt_asserted(), "Write to start did not reload countdown"
 
